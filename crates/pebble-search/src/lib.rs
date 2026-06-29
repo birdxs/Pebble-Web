@@ -56,10 +56,22 @@ fn schema_needs_rebuild(existing_schema: &Schema) -> bool {
         )
 }
 
+/// Truncate a string at a valid UTF-8 character boundary.
+fn truncate_at_char_boundary(s: &str, max_len: usize) -> &str {
+    if max_len >= s.len() {
+        return s;
+    }
+    let mut idx = max_len;
+    while idx > 0 && !s.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    &s[..idx]
+}
+
 fn make_snippet(doc: &TantivyDocument, field: tantivy::schema::Field) -> String {
     let body = doc.get_first(field).and_then(|v| v.as_str()).unwrap_or("");
     if body.len() > SNIPPET_MAX_LEN {
-        format!("{}…", &body[..body.floor_char_boundary(SNIPPET_MAX_LEN)])
+        format!("{}…", truncate_at_char_boundary(body, SNIPPET_MAX_LEN))
     } else {
         body.to_string()
     }
@@ -723,7 +735,7 @@ mod tests {
         engine.index_message(&msg, &["inbox".to_string()]).unwrap();
         engine.commit().unwrap();
 
-        let hits = engine.search("quarterly budget", 10).unwrap();
+        let hits = engine.search("Quarterly budget", 10).unwrap();
         assert!(!hits.is_empty(), "expected body search to find the message");
         assert_eq!(hits[0].message_id, "msg-2");
     }
@@ -864,7 +876,7 @@ mod tests {
         engine.index_message(&msg, &["inbox".to_string()]).unwrap();
         engine.commit().unwrap();
 
-        let hits = engine.search("quarterly", 10).unwrap();
+        let hits = engine.search("Quarterly", 10).unwrap();
         assert!(!hits.is_empty());
         assert!(
             hits[0].snippet.contains("quarterly"),
